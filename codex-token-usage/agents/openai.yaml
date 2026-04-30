@@ -1,0 +1,3 @@
+display_name: Codex Token Usage
+short_description: Track local Codex token usage.
+default_prompt: Show my recent Codex token usage.
