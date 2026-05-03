@@ -5,16 +5,20 @@ description: Report local Codex token usage from the Codex state database and se
 
 # Codex Token Usage
 
-Use the bundled script to query local Codex usage from `~/.codex/state_5.sqlite` and `~/.codex/sessions/**/*.jsonl`. Treat this as Codex client accounting, not final billing/accounting.
+Use the bundled script to query local Codex usage from `~/.codex/state_5.sqlite`, `~/.codex/sessions/**/*.jsonl`, and `~/.codex/archived_sessions/**/*.jsonl`. Treat this as Codex client accounting, not final billing/accounting.
 
 Hourly, daily, weekly, and monthly graphs use timestamped `token_count` events in session JSONL files. For each session, compute positive deltas between successive `total_token_usage.total_tokens` cumulative counters and assign each delta to the event's local hour, date, week, or month. This is the accurate daily-attribution view for token usage, including for sessions or threads that span multiple days. It is preferred over grouping the thread-level `threads.tokens_used` aggregate by `updated_at`, because `updated_at` can move an entire multi-day thread's aggregate total to the most recent day.
+
+## JSONL Ledger Start
+
+The earliest local date with positive token usage in the active plus archived JSONL session ledger is `2025-12-12`. When the user asks for a daily, hourly, weekly, or monthly graph for "all time", start the JSONL event-time graph at `2025-12-12` unless the user explicitly asks for a different start date. For daily all-time graphs, compute the inclusive day count from `2025-12-12` through today and pass that value to `--graph-days N`.
 
 ## Accounting Nuance
 
 Codex stores token usage at two useful granularities:
 
 - `state_5.sqlite` has one `threads.tokens_used` aggregate per thread, with `created_at` and `updated_at` timestamps.
-- `sessions/**/*.jsonl` has timestamped `token_count` events emitted over the lifetime of a session.
+- `sessions/**/*.jsonl` and `archived_sessions/**/*.jsonl` have timestamped `token_count` events emitted over the lifetime of a session.
 
 The thread aggregate is useful for recent-thread tables and broad totals, but it is not a stable daily ledger. If a thread starts on Monday and is resumed on Tuesday, grouping `threads.tokens_used` by `updated_at` assigns the thread's entire accumulated total to Tuesday. Grouping by `created_at` has the opposite problem: Tuesday's resumed work stays attributed to Monday.
 
@@ -22,8 +26,8 @@ For hourly, daily, weekly, and monthly graphs, use session `token_count` events 
 
 1. Read each session JSONL independently.
 2. Track `total_token_usage.total_tokens` as a cumulative counter within that session.
-3. Compute `delta = current_total - previous_total` for successive `token_count` events.
-4. Ignore the first event in a session and any non-positive deltas, because they do not represent newly observed usage.
+3. Compute `delta = current_total` for the first `token_count` event in a session, then `delta = current_total - previous_total` for successive `token_count` events.
+4. Ignore non-positive deltas, because they do not represent newly observed usage.
 5. Attribute each positive delta to the event timestamp's local hour and date.
 6. Roll the same hourly deltas up into days, ISO weeks, or months so hourly, daily, weekly, and monthly totals align.
 
@@ -43,6 +47,8 @@ Expected invariants:
 4. Across the full ledger, total hourly, daily, weekly, and monthly token counts are equal.
 
 When verifying rollups, prefer completed periods or a single immutable snapshot of the session files. The current hour, current day, current ISO week, and current month can change while commands are running because active Codex sessions append new `token_count` events. If a mismatch only appears in the active bucket, rerun or exclude the current incomplete period before treating it as a bug.
+
+Current-period graph buckets are provisional and are not guaranteed to be monotonic across repeated reports. If today's daily graph value, the current hour, the current ISO week, or the current month goes down between runs, explain that graphs are reconstructed from live `~/.codex/sessions/**/*.jsonl` and `~/.codex/archived_sessions/**/*.jsonl` files. Active sessions may still be appending events, rotating files, compacting history, or being read mid-write, so the per-session delta ledger can shift until the period is complete. Compare against `state_5.sqlite` thread totals when checking broad all-time growth; if all-time totals increase while the active graph bucket decreases, treat the graph change as current-period attribution volatility rather than usage being subtracted.
 
 ## Quick Start
 
@@ -122,14 +128,14 @@ skills/codex-token-usage/scripts/codex_token_usage.sh --graph-months all
 3. If `~/.codex/state_5.sqlite` is missing, check whether `CODEX_HOME` is set and try `$CODEX_HOME/state_5.sqlite`.
 4. When the user asks for a "token usage report", "token count update", or just "report", run `--graph-days 14` first, then run totals mode. Show the 14-day daily graph followed by a fixed-width compact summary containing `last_day`, `last_week`, `last_month`, and `all_time`, with numeric columns right-aligned. Do not include the recent-thread table from totals mode unless the user asks for it.
 5. If the user asks only for a graph and provides no time range, use `--graph-days 14` by default.
-6. When the user asks for a "graph of token count", provide an ASCII graph with one row per day. Use the bundled script's `--graph-days N` mode; default to 14 days if the user does not specify a range. These daily graphs should use session `token_count` deltas, not thread `updated_at` totals.
-7. When the user asks to summarize by hour, provide an ASCII bar chart with one row per nonzero local hour. Use the bundled script's `--graph-hours N` mode; default to 7 days if the user does not specify a range.
-8. When the user asks to "summarize by week", provide an ASCII bar chart with one row per week. Use `--graph-weeks all` unless the user gives a narrower range. Weekly graphs should use session `token_count` deltas aggregated by local ISO week.
-9. When the user asks to "summarize monthly" or "summarize by month", provide an ASCII bar chart with one row per month. Use `--graph-months all` unless the user gives a narrower range. Monthly graphs should use session `token_count` deltas aggregated by local month.
+6. When the user asks for a "graph of token count", provide an ASCII graph with one row per day. Use the bundled script's `--graph-days N` mode; default to 14 days if the user does not specify a range. For an all-time daily graph, compute the inclusive day count from `2025-12-12` through today and use that as `N`. These daily graphs should use session `token_count` deltas, not thread `updated_at` totals.
+7. When the user asks to summarize by hour, provide an ASCII bar chart with one row per nonzero local hour. Use the bundled script's `--graph-hours N` mode; default to 7 days if the user does not specify a range. For an all-time hourly graph, compute the inclusive day count from `2025-12-12` through today and use that as `N`.
+8. When the user asks to "summarize by week", provide an ASCII bar chart with one row per week. Use `--graph-weeks all` unless the user gives a narrower range. Weekly all-time graphs start with the ISO week containing `2025-12-12`. Weekly graphs should use session `token_count` deltas aggregated by local ISO week.
+9. When the user asks to "summarize monthly" or "summarize by month", provide an ASCII bar chart with one row per month. Use `--graph-months all` unless the user gives a narrower range. Monthly all-time graphs start with the month containing `2025-12-12`. Monthly graphs should use session `token_count` deltas aggregated by local month.
 10. Mention that graph buckets use session event timestamps in local time when relevant.
 11. Mention that timestamps are rendered in local time.
 12. When the user explicitly asks for totals, counts for last day/week/month/all time, recent threads, or per-thread usage, run the script without graph flags or with `--limit N`.
-13. If the user asks how the accounting works or why graph values differ from thread totals, explain the accounting nuance above.
+13. If the user asks how the accounting works, why graph values differ from thread totals, or why the active day/week/month went down between reports, explain the accounting nuance above.
 
 ## Direct Queries
 
