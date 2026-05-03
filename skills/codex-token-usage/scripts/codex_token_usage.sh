@@ -88,57 +88,59 @@ if [[ -n "$graph_days" ]]; then
   fi
 
   sessions_dir="$codex_home/sessions"
+  archived_sessions_dir="$codex_home/archived_sessions"
   if [[ ! -d "$sessions_dir" ]]; then
     echo "Codex sessions directory not found: $sessions_dir" >&2
     exit 1
   fi
 
-  python3 - "$sessions_dir" "$graph_days" <<'PY'
+  python3 - "$graph_days" "$sessions_dir" "$archived_sessions_dir" <<'PY'
 import datetime as dt
 import json
 import sys
 from collections import defaultdict
 from pathlib import Path
 
-sessions_dir = Path(sys.argv[1])
-days = int(sys.argv[2])
+days = int(sys.argv[1])
+session_roots = [Path(arg) for arg in sys.argv[2:] if Path(arg).is_dir()]
 
 today = dt.datetime.now().astimezone().date()
 start = today - dt.timedelta(days=days - 1)
 rows = {start + dt.timedelta(days=i): 0 for i in range(days)}
 
-for path in sorted(sessions_dir.rglob("*.jsonl")):
-    previous_total = None
-    with path.open("r", encoding="utf-8") as handle:
-        for line in handle:
-            try:
-                event = json.loads(line)
-            except json.JSONDecodeError:
-                continue
-            if event.get("type") != "event_msg":
-                continue
-            payload = event.get("payload") or {}
-            if payload.get("type") != "token_count":
-                continue
-            info = payload.get("info") or {}
-            total_usage = info.get("total_token_usage") or {}
-            total = total_usage.get("total_tokens")
-            if not isinstance(total, int):
-                continue
-            timestamp = event.get("timestamp")
-            if not timestamp:
-                continue
-            try:
-                when = dt.datetime.fromisoformat(timestamp.replace("Z", "+00:00")).astimezone()
-            except ValueError:
-                continue
-            delta = 0 if previous_total is None else total - previous_total
-            previous_total = total
-            if delta <= 0:
-                continue
-            day = when.date()
-            if start <= day <= today:
-                rows[day] += delta
+for root in session_roots:
+    for path in sorted(root.rglob("*.jsonl")):
+        previous_total = None
+        with path.open("r", encoding="utf-8") as handle:
+            for line in handle:
+                try:
+                    event = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if event.get("type") != "event_msg":
+                    continue
+                payload = event.get("payload") or {}
+                if payload.get("type") != "token_count":
+                    continue
+                info = payload.get("info") or {}
+                total_usage = info.get("total_token_usage") or {}
+                total = total_usage.get("total_tokens")
+                if not isinstance(total, int):
+                    continue
+                timestamp = event.get("timestamp")
+                if not timestamp:
+                    continue
+                try:
+                    when = dt.datetime.fromisoformat(timestamp.replace("Z", "+00:00")).astimezone()
+                except ValueError:
+                    continue
+                delta = total if previous_total is None else total - previous_total
+                previous_total = total
+                if delta <= 0:
+                    continue
+                day = when.date()
+                if start <= day <= today:
+                    rows[day] += delta
 
 max_tokens = max(rows.values(), default=0)
 print("== daily token graph ==")
@@ -166,20 +168,21 @@ if [[ -n "$graph_hours" ]]; then
   fi
 
   sessions_dir="$codex_home/sessions"
+  archived_sessions_dir="$codex_home/archived_sessions"
   if [[ ! -d "$sessions_dir" ]]; then
     echo "Codex sessions directory not found: $sessions_dir" >&2
     exit 1
   fi
 
-  python3 - "$sessions_dir" "$graph_hours" <<'PY'
+  python3 - "$graph_hours" "$sessions_dir" "$archived_sessions_dir" <<'PY'
 import datetime as dt
 import json
 import sys
 from collections import defaultdict
 from pathlib import Path
 
-sessions_dir = Path(sys.argv[1])
-days = int(sys.argv[2])
+days = int(sys.argv[1])
+session_roots = [Path(arg) for arg in sys.argv[2:] if Path(arg).is_dir()]
 
 today = dt.datetime.now().astimezone().date()
 start_day = today - dt.timedelta(days=days - 1)
@@ -188,38 +191,39 @@ start = dt.datetime.combine(start_day, dt.time.min, tzinfo=local_tz)
 end = dt.datetime.combine(today + dt.timedelta(days=1), dt.time.min, tzinfo=local_tz)
 rows = defaultdict(int)
 
-for path in sorted(sessions_dir.rglob("*.jsonl")):
-    previous_total = None
-    with path.open("r", encoding="utf-8") as handle:
-        for line in handle:
-            try:
-                event = json.loads(line)
-            except json.JSONDecodeError:
-                continue
-            if event.get("type") != "event_msg":
-                continue
-            payload = event.get("payload") or {}
-            if payload.get("type") != "token_count":
-                continue
-            info = payload.get("info") or {}
-            total_usage = info.get("total_token_usage") or {}
-            total = total_usage.get("total_tokens")
-            if not isinstance(total, int):
-                continue
-            timestamp = event.get("timestamp")
-            if not timestamp:
-                continue
-            try:
-                when = dt.datetime.fromisoformat(timestamp.replace("Z", "+00:00")).astimezone()
-            except ValueError:
-                continue
-            delta = 0 if previous_total is None else total - previous_total
-            previous_total = total
-            if delta <= 0:
-                continue
-            if start <= when < end:
-                hour = when.replace(minute=0, second=0, microsecond=0)
-                rows[hour] += delta
+for root in session_roots:
+    for path in sorted(root.rglob("*.jsonl")):
+        previous_total = None
+        with path.open("r", encoding="utf-8") as handle:
+            for line in handle:
+                try:
+                    event = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if event.get("type") != "event_msg":
+                    continue
+                payload = event.get("payload") or {}
+                if payload.get("type") != "token_count":
+                    continue
+                info = payload.get("info") or {}
+                total_usage = info.get("total_token_usage") or {}
+                total = total_usage.get("total_tokens")
+                if not isinstance(total, int):
+                    continue
+                timestamp = event.get("timestamp")
+                if not timestamp:
+                    continue
+                try:
+                    when = dt.datetime.fromisoformat(timestamp.replace("Z", "+00:00")).astimezone()
+                except ValueError:
+                    continue
+                delta = total if previous_total is None else total - previous_total
+                previous_total = total
+                if delta <= 0:
+                    continue
+                if start <= when < end:
+                    hour = when.replace(minute=0, second=0, microsecond=0)
+                    rows[hour] += delta
 
 max_tokens = max(rows.values(), default=0)
 print("== hourly token graph ==")
@@ -248,20 +252,21 @@ if [[ -n "$graph_weeks" ]]; then
   fi
 
   sessions_dir="$codex_home/sessions"
+  archived_sessions_dir="$codex_home/archived_sessions"
   if [[ ! -d "$sessions_dir" ]]; then
     echo "Codex sessions directory not found: $sessions_dir" >&2
     exit 1
   fi
 
-  python3 - "$sessions_dir" "$graph_weeks" <<'PY'
+  python3 - "$graph_weeks" "$sessions_dir" "$archived_sessions_dir" <<'PY'
 import datetime as dt
 import json
 import sys
 from collections import defaultdict
 from pathlib import Path
 
-sessions_dir = Path(sys.argv[1])
-weeks_arg = sys.argv[2]
+weeks_arg = sys.argv[1]
+session_roots = [Path(arg) for arg in sys.argv[2:] if Path(arg).is_dir()]
 today = dt.datetime.now().astimezone().date()
 start = None
 if weeks_arg != "all":
@@ -269,45 +274,46 @@ if weeks_arg != "all":
 
 rows = defaultdict(int)
 spans = {}
-for path in sorted(sessions_dir.rglob("*.jsonl")):
-    previous_total = None
-    with path.open("r", encoding="utf-8") as handle:
-        for line in handle:
-            try:
-                event = json.loads(line)
-            except json.JSONDecodeError:
-                continue
-            if event.get("type") != "event_msg":
-                continue
-            payload = event.get("payload") or {}
-            if payload.get("type") != "token_count":
-                continue
-            info = payload.get("info") or {}
-            total_usage = info.get("total_token_usage") or {}
-            total = total_usage.get("total_tokens")
-            if not isinstance(total, int):
-                continue
-            timestamp = event.get("timestamp")
-            if not timestamp:
-                continue
-            try:
-                when = dt.datetime.fromisoformat(timestamp.replace("Z", "+00:00")).astimezone()
-            except ValueError:
-                continue
-            delta = 0 if previous_total is None else total - previous_total
-            previous_total = total
-            if delta <= 0:
-                continue
-            day = when.date()
-            if start and day < start:
-                continue
-            iso_year, iso_week, _ = day.isocalendar()
-            key = f"{iso_year}-W{iso_week:02d}"
-            rows[key] += delta
-            week_start = day - dt.timedelta(days=day.weekday())
-            week_end = week_start + dt.timedelta(days=6)
-            if key not in spans:
-                spans[key] = [week_start, week_end]
+for root in session_roots:
+    for path in sorted(root.rglob("*.jsonl")):
+        previous_total = None
+        with path.open("r", encoding="utf-8") as handle:
+            for line in handle:
+                try:
+                    event = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if event.get("type") != "event_msg":
+                    continue
+                payload = event.get("payload") or {}
+                if payload.get("type") != "token_count":
+                    continue
+                info = payload.get("info") or {}
+                total_usage = info.get("total_token_usage") or {}
+                total = total_usage.get("total_tokens")
+                if not isinstance(total, int):
+                    continue
+                timestamp = event.get("timestamp")
+                if not timestamp:
+                    continue
+                try:
+                    when = dt.datetime.fromisoformat(timestamp.replace("Z", "+00:00")).astimezone()
+                except ValueError:
+                    continue
+                delta = total if previous_total is None else total - previous_total
+                previous_total = total
+                if delta <= 0:
+                    continue
+                day = when.date()
+                if start and day < start:
+                    continue
+                iso_year, iso_week, _ = day.isocalendar()
+                key = f"{iso_year}-W{iso_week:02d}"
+                rows[key] += delta
+                week_start = day - dt.timedelta(days=day.weekday())
+                week_end = week_start + dt.timedelta(days=6)
+                if key not in spans:
+                    spans[key] = [week_start, week_end]
 
 max_tokens = max(rows.values(), default=0)
 print("== weekly token graph ==")
@@ -333,12 +339,13 @@ if [[ -n "$graph_months" ]]; then
   fi
 
   sessions_dir="$codex_home/sessions"
+  archived_sessions_dir="$codex_home/archived_sessions"
   if [[ ! -d "$sessions_dir" ]]; then
     echo "Codex sessions directory not found: $sessions_dir" >&2
     exit 1
   fi
 
-  python3 - "$sessions_dir" "$graph_months" <<'PY'
+  python3 - "$graph_months" "$sessions_dir" "$archived_sessions_dir" <<'PY'
 import calendar
 import datetime as dt
 import json
@@ -346,8 +353,8 @@ import sys
 from collections import defaultdict
 from pathlib import Path
 
-sessions_dir = Path(sys.argv[1])
-months_arg = sys.argv[2]
+months_arg = sys.argv[1]
+session_roots = [Path(arg) for arg in sys.argv[2:] if Path(arg).is_dir()]
 today = dt.datetime.now().astimezone().date()
 start = None
 if months_arg != "all":
@@ -361,44 +368,45 @@ if months_arg != "all":
 
 rows = defaultdict(int)
 spans = {}
-for path in sorted(sessions_dir.rglob("*.jsonl")):
-    previous_total = None
-    with path.open("r", encoding="utf-8") as handle:
-        for line in handle:
-            try:
-                event = json.loads(line)
-            except json.JSONDecodeError:
-                continue
-            if event.get("type") != "event_msg":
-                continue
-            payload = event.get("payload") or {}
-            if payload.get("type") != "token_count":
-                continue
-            info = payload.get("info") or {}
-            total_usage = info.get("total_token_usage") or {}
-            total = total_usage.get("total_tokens")
-            if not isinstance(total, int):
-                continue
-            timestamp = event.get("timestamp")
-            if not timestamp:
-                continue
-            try:
-                when = dt.datetime.fromisoformat(timestamp.replace("Z", "+00:00")).astimezone()
-            except ValueError:
-                continue
-            delta = 0 if previous_total is None else total - previous_total
-            previous_total = total
-            if delta <= 0:
-                continue
-            day = when.date()
-            if start and day < start:
-                continue
-            key = f"{day.year:04d}-{day.month:02d}"
-            rows[key] += delta
-            first = dt.date(day.year, day.month, 1)
-            last = dt.date(day.year, day.month, calendar.monthrange(day.year, day.month)[1])
-            if key not in spans:
-                spans[key] = [first, last]
+for root in session_roots:
+    for path in sorted(root.rglob("*.jsonl")):
+        previous_total = None
+        with path.open("r", encoding="utf-8") as handle:
+            for line in handle:
+                try:
+                    event = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if event.get("type") != "event_msg":
+                    continue
+                payload = event.get("payload") or {}
+                if payload.get("type") != "token_count":
+                    continue
+                info = payload.get("info") or {}
+                total_usage = info.get("total_token_usage") or {}
+                total = total_usage.get("total_tokens")
+                if not isinstance(total, int):
+                    continue
+                timestamp = event.get("timestamp")
+                if not timestamp:
+                    continue
+                try:
+                    when = dt.datetime.fromisoformat(timestamp.replace("Z", "+00:00")).astimezone()
+                except ValueError:
+                    continue
+                delta = total if previous_total is None else total - previous_total
+                previous_total = total
+                if delta <= 0:
+                    continue
+                day = when.date()
+                if start and day < start:
+                    continue
+                key = f"{day.year:04d}-{day.month:02d}"
+                rows[key] += delta
+                first = dt.date(day.year, day.month, 1)
+                last = dt.date(day.year, day.month, calendar.monthrange(day.year, day.month)[1])
+                if key not in spans:
+                    spans[key] = [first, last]
 
 max_tokens = max(rows.values(), default=0)
 print("== monthly token graph ==")
