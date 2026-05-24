@@ -67,21 +67,6 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-if ! command -v sqlite3 >/dev/null 2>&1; then
-  echo "sqlite3 is required" >&2
-  exit 1
-fi
-
-if [[ ! -f "$db" ]]; then
-  echo "Codex state database not found: $db" >&2
-  exit 1
-fi
-
-if [[ ! "$limit" =~ ^[0-9]+$ ]]; then
-  echo "--limit must be a non-negative integer" >&2
-  exit 2
-fi
-
 if [[ -n "$daily_breakdown" ]]; then
   if [[ ! "$daily_breakdown" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]; then
     echo "--daily-breakdown must be YYYY-MM-DD" >&2
@@ -103,6 +88,21 @@ if [[ -n "$daily_breakdown" ]]; then
   script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
   python3 "$script_dir/codex_daily_breakdown.py" "$daily_breakdown" "$sessions_dir" "$archived_sessions_dir"
   exit 0
+fi
+
+if ! command -v sqlite3 >/dev/null 2>&1; then
+  echo "sqlite3 is required" >&2
+  exit 1
+fi
+
+if [[ ! -f "$db" ]]; then
+  echo "Codex state database not found: $db" >&2
+  exit 1
+fi
+
+if [[ ! "$limit" =~ ^[0-9]+$ ]]; then
+  echo "--limit must be a non-negative integer" >&2
+  exit 2
 fi
 
 if [[ -n "$graph_days" ]]; then
