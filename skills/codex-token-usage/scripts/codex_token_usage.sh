@@ -8,10 +8,11 @@ graph_days=""
 graph_hours=""
 graph_weeks=""
 graph_months=""
+daily_breakdown=""
 
 usage() {
   cat <<'EOF'
-Usage: codex_token_usage.sh [--db PATH] [--limit N] [--graph-days N] [--graph-hours N] [--graph-weeks N|all] [--graph-months N|all]
+Usage: codex_token_usage.sh [--db PATH] [--limit N] [--graph-days N] [--graph-hours N] [--graph-weeks N|all] [--graph-months N|all] [--daily-breakdown YYYY-MM-DD]
 
 Reports local Codex token usage from state_5.sqlite.
 EOF
@@ -49,6 +50,11 @@ while [[ $# -gt 0 ]]; do
       graph_months="$2"
       shift 2
       ;;
+    --daily-breakdown)
+      [[ $# -ge 2 ]] || { echo "--daily-breakdown requires YYYY-MM-DD" >&2; exit 2; }
+      daily_breakdown="$2"
+      shift 2
+      ;;
     -h|--help)
       usage
       exit 0
@@ -74,6 +80,29 @@ fi
 if [[ ! "$limit" =~ ^[0-9]+$ ]]; then
   echo "--limit must be a non-negative integer" >&2
   exit 2
+fi
+
+if [[ -n "$daily_breakdown" ]]; then
+  if [[ ! "$daily_breakdown" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]; then
+    echo "--daily-breakdown must be YYYY-MM-DD" >&2
+    exit 2
+  fi
+
+  if ! command -v python3 >/dev/null 2>&1; then
+    echo "python3 is required for daily breakdowns" >&2
+    exit 1
+  fi
+
+  sessions_dir="$codex_home/sessions"
+  archived_sessions_dir="$codex_home/archived_sessions"
+  if [[ ! -d "$sessions_dir" ]]; then
+    echo "Codex sessions directory not found: $sessions_dir" >&2
+    exit 1
+  fi
+
+  script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+  python3 "$script_dir/codex_daily_breakdown.py" "$daily_breakdown" "$sessions_dir" "$archived_sessions_dir"
+  exit 0
 fi
 
 if [[ -n "$graph_days" ]]; then
@@ -143,6 +172,7 @@ for root in session_roots:
                     rows[day] += delta
 
 max_tokens = max(rows.values(), default=0)
+token_width = max([12] + [len(f"{value:,}") for value in rows.values()])
 print("== daily token graph ==")
 for day in sorted(rows):
     tokens = rows[day]
@@ -151,7 +181,7 @@ for day in sorted(rows):
     else:
         width = max(1, round(tokens * 40 / max_tokens))
         bar = "#" * width
-    print(f"{day.isoformat()}  {tokens:12,}  {bar}")
+    print(f"{day.isoformat()}  {tokens:{token_width},}  {bar}")
 PY
   exit 0
 fi
@@ -226,6 +256,7 @@ for root in session_roots:
                     rows[hour] += delta
 
 max_tokens = max(rows.values(), default=0)
+token_width = max([12] + [len(f"{value:,}") for value in rows.values()])
 print("== hourly token graph ==")
 current = start
 while current < end:
@@ -233,7 +264,7 @@ while current < end:
     if tokens:
         width = max(1, round(tokens * 40 / max_tokens)) if max_tokens else 0
         bar = "#" * width
-        print(f"{current:%Y-%m-%d %H:00}  {tokens:12,}  {bar}")
+        print(f"{current:%Y-%m-%d %H:00}  {tokens:{token_width},}  {bar}")
     current += dt.timedelta(hours=1)
 print(f"\ntotal {sum(rows.values()):,}")
 PY
@@ -316,13 +347,14 @@ for root in session_roots:
                     spans[key] = [week_start, week_end]
 
 max_tokens = max(rows.values(), default=0)
+token_width = max([12] + [len(f"{value:,}") for value in rows.values()])
 print("== weekly token graph ==")
 for key in sorted(rows, key=lambda k: spans[k][0]):
     tokens = rows[key]
     width = 0 if tokens == 0 or max_tokens == 0 else max(1, round(tokens * 40 / max_tokens))
     bar = "#" * width
     span = f"{spans[key][0].isoformat()}..{spans[key][1].isoformat()}"
-    print(f"{key}  {span:<22}  {tokens:12,}  {bar}")
+    print(f"{key}  {span:<22}  {tokens:{token_width},}  {bar}")
 PY
   exit 0
 fi
@@ -409,13 +441,14 @@ for root in session_roots:
                     spans[key] = [first, last]
 
 max_tokens = max(rows.values(), default=0)
+token_width = max([12] + [len(f"{value:,}") for value in rows.values()])
 print("== monthly token graph ==")
 for key in sorted(rows):
     tokens = rows[key]
     width = 0 if tokens == 0 or max_tokens == 0 else max(1, round(tokens * 40 / max_tokens))
     bar = "#" * width
     span = f"{spans[key][0].isoformat()}..{spans[key][1].isoformat()}"
-    print(f"{key}  {span:<22}  {tokens:12,}  {bar}")
+    print(f"{key}  {span:<22}  {tokens:{token_width},}  {bar}")
 PY
   exit 0
 fi

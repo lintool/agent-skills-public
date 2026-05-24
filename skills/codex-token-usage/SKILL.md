@@ -1,6 +1,6 @@
 ---
 name: codex-token-usage
-description: Report local Codex token usage from the Codex state database and session JSONL files. Use when the user asks for a Codex token usage report, token count update, how many Codex tokens they have used recently, usage totals for the last day/week/month/all time, a graph of token count, ASCII bar charts, weekly summaries, summarize by week, monthly summaries, summarize monthly, per-thread token accounting, or usage grouped by time window/model.
+description: Report local Codex token usage from the Codex state database and session JSONL files. Use when the user asks for a Codex token usage report, token count update, how many Codex tokens they have used recently, usage totals for the last day/week/month/all time, a graph of token count, ASCII bar charts, weekly summaries, summarize by week, monthly summaries, summarize monthly, daily breakdowns, daily analysis, per-thread token accounting, or usage grouped by time window/model.
 ---
 
 # Codex Token Usage
@@ -121,6 +121,40 @@ Print an ASCII monthly graph:
 skills/codex-token-usage/scripts/codex_token_usage.sh --graph-months all
 ```
 
+Print a detailed breakdown for one local day:
+
+```bash
+skills/codex-token-usage/scripts/codex_token_usage.sh --daily-breakdown 2026-05-23
+```
+
+The `--daily-breakdown` CLI mode delegates to `skills/codex-token-usage/scripts/codex_daily_breakdown.py`. Keep `codex_token_usage.sh` as the user-facing entry point unless debugging or changing the daily parser itself.
+
+## Daily Breakdown
+
+When the user asks for a "daily breakdown", "daily analysis", "breakdown for YYYY-MM-DD", or asks why one daily graph bar looks unusually large, use:
+
+```bash
+skills/codex-token-usage/scripts/codex_token_usage.sh --daily-breakdown YYYY-MM-DD
+```
+
+If the user gives a date like `05-23`, infer the current year unless the surrounding conversation implies a different year. If the user refers to "yesterday" or "today", resolve it to an explicit local date before running the command.
+
+The daily breakdown uses the same session-event ledger as the daily graph: positive deltas between successive cumulative `total_token_usage.total_tokens` counters, attributed to the event's local day.
+
+In the final answer, render this report in Markdown, but use fixed-width fenced `text` tables for the token summary, workspace breakdown, session breakdown, and hourly breakdown so numeric values are visibly right-aligned in the response. Do not rely on Markdown table alignment markers such as `---:` for this report, because they may not render as visibly aligned in every Codex surface.
+
+Use this report structure:
+
+1. `**Daily Breakdown: YYYY-MM-DD**`
+2. `**Summary**`, followed by a fenced `text` table with columns `Metric` and `Tokens`. Include `Total`, `Input`, `Cached input`, `Output`, `Reasoning output`, and `Approx non-cached + output`. Right-align the `Tokens` values.
+3. `**By Workspace**`, followed by a fenced `text` table with columns `Tokens`, `Share`, and `Workspace`. Right-align `Tokens` and `Share`.
+4. `**By Session**`, followed by a fenced `text` table with columns `Tokens`, `Share`, `Time`, `Cached`, `Noncached+Out`, `Workspace`, and `Title`. Right-align `Tokens`, `Share`, `Cached`, and `Noncached+Out`. Sort sessions by `Tokens` descending.
+5. `**By Hour**`, followed by a fenced `text` table with columns `Hour` and `Tokens`. Right-align `Tokens`.
+
+For workspace and session names, use concise display names in the session table when the full path would make the table hard to scan. Keep full paths in the workspace table.
+
+For large daily spikes, explicitly call out whether the total is dominated by cached input tokens. This is often the most useful interpretation because the graph's total includes cached input, while `approx non-cached+output` is usually closer to the effective non-cached work represented in the ledger.
+
 ## Workflow
 
 1. Prefer the bundled script for normal requests.
@@ -135,7 +169,8 @@ skills/codex-token-usage/scripts/codex_token_usage.sh --graph-months all
 10. Mention that graph buckets use session event timestamps in local time when relevant.
 11. Mention that timestamps are rendered in local time.
 12. When the user explicitly asks for totals, counts for last day/week/month/all time, recent threads, or per-thread usage, run the script without graph flags or with `--limit N`.
-13. If the user asks how the accounting works, why graph values differ from thread totals, or why the active day/week/month went down between reports, explain the accounting nuance above.
+13. When the user asks for a daily breakdown, daily analysis, or why a particular daily bar is high, run `--daily-breakdown YYYY-MM-DD`.
+14. If the user asks how the accounting works, why graph values differ from thread totals, or why the active day/week/month went down between reports, explain the accounting nuance above.
 
 ## Direct Queries
 
