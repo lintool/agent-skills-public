@@ -19,7 +19,11 @@ def session_metadata(path):
     title = ""
     session_id = path.stem.replace("rollout-", "")
 
-    with path.open("r", encoding="utf-8") as handle:
+    try:
+        handle = path.open("r", encoding="utf-8")
+    except FileNotFoundError:
+        return session_id, cwd, title
+    with handle:
         for line in handle:
             try:
                 event = json.loads(line)
@@ -82,7 +86,11 @@ def collect_daily_breakdown(target, session_roots):
             previous_components = None
             row = None
 
-            with path.open("r", encoding="utf-8") as handle:
+            try:
+                handle = path.open("r", encoding="utf-8")
+            except FileNotFoundError:
+                continue
+            with handle:
                 for line in handle:
                     try:
                         event = json.loads(line)
