@@ -140,7 +140,11 @@ rows = {start + dt.timedelta(days=i): 0 for i in range(days)}
 for root in session_roots:
     for path in sorted(root.rglob("*.jsonl")):
         previous_total = None
-        with path.open("r", encoding="utf-8") as handle:
+        try:
+            handle = path.open("r", encoding="utf-8")
+        except FileNotFoundError:
+            continue
+        with handle:
             for line in handle:
                 try:
                     event = json.loads(line)
@@ -224,7 +228,11 @@ rows = defaultdict(int)
 for root in session_roots:
     for path in sorted(root.rglob("*.jsonl")):
         previous_total = None
-        with path.open("r", encoding="utf-8") as handle:
+        try:
+            handle = path.open("r", encoding="utf-8")
+        except FileNotFoundError:
+            continue
+        with handle:
             for line in handle:
                 try:
                     event = json.loads(line)
@@ -308,7 +316,11 @@ spans = {}
 for root in session_roots:
     for path in sorted(root.rglob("*.jsonl")):
         previous_total = None
-        with path.open("r", encoding="utf-8") as handle:
+        try:
+            handle = path.open("r", encoding="utf-8")
+        except FileNotFoundError:
+            continue
+        with handle:
             for line in handle:
                 try:
                     event = json.loads(line)
@@ -403,7 +415,11 @@ spans = {}
 for root in session_roots:
     for path in sorted(root.rglob("*.jsonl")):
         previous_total = None
-        with path.open("r", encoding="utf-8") as handle:
+        try:
+            handle = path.open("r", encoding="utf-8")
+        except FileNotFoundError:
+            continue
+        with handle:
             for line in handle:
                 try:
                     event = json.loads(line)
