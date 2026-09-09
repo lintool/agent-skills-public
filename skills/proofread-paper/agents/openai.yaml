@@ -1,0 +1,4 @@
+---
+name: proofread-paper
+description: Visually proofread academic paper PDFs by rendering pages to PNG images and inspecting text, mandatory prose and punctuation checks, layout, and references in phase-specific passes.
+---
