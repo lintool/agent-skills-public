@@ -1,6 +1,6 @@
 # agent-skills-public
 
-Reusable agent skills and helper scripts for academic-paper proofreading and local Codex token-usage reports.
+Skills for use through the Codex App, covering academic-paper proofreading and local token-usage reports.
 
 ## Available Skills
 
@@ -9,7 +9,15 @@ Reusable agent skills and helper scripts for academic-paper proofreading and loc
 | [proofread-paper](skills/proofread-paper/SKILL.md) | Inspect academic PDFs for prose, punctuation, layout, and reference issues using rendered pages and extracted text. |
 | [codex-token-usage](skills/codex-token-usage/SKILL.md) | Summarize local token usage and produce hourly, daily, weekly, and monthly text graphs. |
 
-See each skill's `SKILL.md` for its workflow. Run the commands below from the repository root.
+Ask Codex to perform the task using the relevant skill. Codex follows the skill's workflow and runs its helper scripts as needed. See each skill's `SKILL.md` for details.
+
+## Example Requests
+
+With the relevant skill available in the Codex App, try:
+
+- Attach a PDF and ask: "Proofread this paper."
+- "Show my token usage for the last two weeks."
+- "Summarize my token usage by month."
 
 ## Prerequisites
 
@@ -18,9 +26,9 @@ See each skill's `SKILL.md` for its workflow. Run the commands below from the re
 
 Token-usage reports require local Codex data. By default, the scripts read `~/.codex/state_5.sqlite`, `~/.codex/sessions/`, and `~/.codex/archived_sessions/` when available. Set `CODEX_HOME` if your data lives elsewhere. These reports describe local client accounting, not final billing.
 
-## Set Up the Proofreading Environment
+## Proofreading Environment Setup
 
-Create a repository-local virtual environment and install the PDF text-extraction dependency:
+You can ask Codex to set up the Python environment in this repository. The commands below are provided for reference; they run from the repository root and create a local virtual environment with the PDF text-extraction dependency:
 
 ```bash
 python3 -m venv .venv
@@ -28,46 +36,13 @@ python3 -m venv .venv
 .venv/bin/python -m pip install -r requirements.txt
 ```
 
-Verify the dependency:
+Codex can verify the dependency with:
 
 ```bash
 .venv/bin/python -c "import pypdf; print(pypdf.__version__)"
 ```
 
-Use `.venv/bin/python` for PDF text checks. You can optionally activate the environment with `source .venv/bin/activate`.
-
-## Example Commands
-
-### Render a Paper
-
-Place a PDF at `tmp/input/paper.pdf`, then run:
-
-```bash
-mkdir -p tmp/input tmp/rendered-pages-paper
-skills/proofread-paper/scripts/render_pdf_pages.swift tmp/input/paper.pdf tmp/rendered-pages-paper
-```
-
-The renderer writes `page-01.png`, `page-02.png`, and so on. Follow the [proofreading workflow](skills/proofread-paper/SKILL.md) to inspect the rendered pages and perform the text, layout, and reference passes.
-
-### Report Token Usage
-
-Show totals and recent tasks:
-
-```bash
-skills/codex-token-usage/scripts/codex_token_usage.sh
-```
-
-Show a daily graph for the last 14 days:
-
-```bash
-skills/codex-token-usage/scripts/codex_token_usage.sh --graph-days 14
-```
-
-List command options:
-
-```bash
-skills/codex-token-usage/scripts/codex_token_usage.sh --help
-```
+The proofreading skill uses `.venv/bin/python` for PDF text checks.
 
 ## Local Files
 
