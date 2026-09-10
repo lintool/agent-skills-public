@@ -1,0 +1,10 @@
+# Local Python environment and caches
+.venv/
+__pycache__/
+*.py[cod]
+
+# Input PDFs, rendered pages, and scratch files
+tmp/
+
+# macOS metadata
+.DS_Store
